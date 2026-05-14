@@ -8,7 +8,7 @@ class SpoolReader
 
     public function __construct($dir)
     {
-        if (file_exists($dir)) {
+        if (is_dir($dir)) {
             $this->spoolDir = $dir;
         } else {
             throw new Exception("Folder $dir not found");
@@ -20,26 +20,59 @@ class SpoolReader
      *
      * @return array
      */
-    public function run()
+    public function run($limit = null)
     {
-        // Get all the files from spool dir
-        $files = glob($this->spoolDir.'/*');
+        $this->messages = array();
 
-        $tmp = [];
-        // Sort the files by time
-        foreach ($files as $f){
-            $tmp[basename($f)] = filemtime($f);
+        // Get all the files from spool dir
+        $files = glob($this->spoolDir . '/*');
+        if ($files === false) {
+            return $this->messages;
         }
-        
+
+        $tmp = array();
+        // Sort the files by time
+        foreach ($files as $fullPath) {
+            if (!is_file($fullPath)) {
+                continue;
+            }
+
+            $mtime = filemtime($fullPath);
+            if ($mtime === false) {
+                continue;
+            }
+
+            $tmp[basename($fullPath)] = $mtime;
+        }
+
         arsort($tmp);
         $files = array_keys($tmp);
 
+        $maxItems = null;
+        if (is_numeric($limit)) {
+            $maxItems = (int) $limit;
+            if ($maxItems < 1) {
+                $maxItems = 1;
+            }
+        }
+
         foreach ($files as $file) {
-            if (is_dir($file)) {
+            $fullPath = $this->spoolDir . '/' . $file;
+            if (!is_file($fullPath)) {
                 continue;
             }
-            $message = $this->parseFile($this->spoolDir . '/' . $file);
-            $this->messages[] = $message;
+
+            try {
+                $message = $this->parseFile($fullPath);
+                $this->messages[] = $message;
+            } catch (Exception $e) {
+                // Skip unreadable/corrupt spool files without breaking the whole inbox.
+                continue;
+            }
+
+            if ($maxItems !== null && count($this->messages) >= $maxItems) {
+                break;
+            }
         }
 
         return $this->messages;
@@ -52,8 +85,14 @@ class SpoolReader
     {
         // Get all the files from spool dir
         $files = glob($this->spoolDir . '/*');
+        if ($files === false) {
+            return;
+        }
+
         foreach ($files as $file) {
-            unlink($file);
+            if (is_file($file)) {
+                unlink($file);
+            }
         }
     }
 
@@ -67,23 +106,32 @@ class SpoolReader
      */
     private function parseFile($filename)
     {
-        if(file_exists($filename)) {
+        if (file_exists($filename)) {
             $file = file_get_contents($filename);
+            if ($file === false) {
+                throw new Exception("Unable to read file $filename");
+            }
         } else {
             throw new Exception("File $filename not found");
         }
 
         /* @var $swiftMessage Swift_Message */
-        $swiftMessage = unserialize($file);
-
-        // Initialize the array that will hold our parsed message
-        $message = array('headers' => array(), 'body' => '');
-
-        foreach ($swiftMessage->getHeaders()->getAll() as $header) {
-            $message['headers'][$header->getFieldName()] = $header->getFieldBodyModel();
+        $swiftMessage = @unserialize($file);
+        if (!$swiftMessage instanceof Swift_Message) {
+            throw new Exception("Invalid spool message in $filename");
         }
 
-        $message['body'] = $swiftMessage->getBody();
+        // Initialize the array that will hold our parsed message
+        $messageHeaders = array();
+
+        foreach ($swiftMessage->getHeaders()->getAll() as $header) {
+            $messageHeaders[$header->getFieldName()] = $header->getFieldBodyModel();
+        }
+
+        $message = array(
+            'headers' => $messageHeaders,
+            'body' => $swiftMessage->getBody(),
+        );
 
         return $message;
     }

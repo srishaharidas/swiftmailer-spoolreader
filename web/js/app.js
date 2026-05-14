@@ -1,9 +1,22 @@
 const Messages = {
     list: [],
     lastRefreshed: moment(),
+    error: null,
     fetch: (vnode, params = {}) => m.request({url: "fetch.php", params}).then((result) => {
         Messages.lastRefreshed = moment();
-        Messages.list = result;
+        Messages.error = null;
+
+        if (Array.isArray(result)) {
+            Messages.list = result;
+            return;
+        }
+
+        Messages.list = [];
+        Messages.error = result && result.message ? result.message : 'Failed to load spooled emails';
+    }).catch((err) => {
+        Messages.lastRefreshed = moment();
+        Messages.list = [];
+        Messages.error = err && err.message ? err.message : 'Failed to load spooled emails';
     }),
 }
 
@@ -76,9 +89,9 @@ const EmailRow = {
 
     formatDate: (unixtime) => {
         const date = moment(unixtime * 1000);
-        let dateStr = date.format('MMM D HH:MM');
+        let dateStr = date.format('MMM D HH:mm');
         if (date.format('l') === moment().format('l')) {
-            dateStr = 'Today ' + date.format('HH:MM');
+            dateStr = 'Today ' + date.format('HH:mm');
         }
         return m("span.date", [dateStr, m('small.relative-date', date.fromNow())]);
     },
@@ -123,6 +136,17 @@ const EmailList = {
                 m("th.email", "To"), m("th", "Subject"), m("th.actions", "Actions")
             ])
         ]);
+
+        if (Messages.error) {
+            return [
+                thead,
+                m("tbody", [
+                    m("tr", [
+                        m("td.text-danger", {colspan: 7}, `Unable to load emails: ${Messages.error}`)
+                    ])
+                ])
+            ];
+        }
 
         const tbody = m("tbody", Messages.list.map((message) => m(EmailRow, {message, idx: ++vnode.state.data.idx})));
         return [thead, tbody];
