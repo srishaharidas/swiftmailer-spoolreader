@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM debian:buster-slim as builder
+FROM debian:bookworm-slim AS builder
 
 SHELL ["/bin/bash", "-c"]
 WORKDIR /app
@@ -9,7 +9,7 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 
 RUN apt-get update && apt-get install -y curl gnupg tzdata unzip git
 
-RUN curl -sL https://deb.nodesource.com/setup_12.x | bash \
+RUN curl -sL https://deb.nodesource.com/setup_20.x | bash \
     && apt-get install -y nodejs php php-fpm php-zip nginx
 
 COPY . .
@@ -18,7 +18,7 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 RUN composer update && composer install
 
 # Stage 2: Final Image
-FROM php:7.4-apache
+FROM php:7.4-apache-bullseye
 
 COPY --from=builder /app/config /var/www/config
 COPY --from=builder /app/web /var/www/html/

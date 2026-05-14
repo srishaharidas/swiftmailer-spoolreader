@@ -17,6 +17,9 @@
     "url": "https://github.com/rushi/swiftmailer-spoolreader/issues"
   },
   "homepage": "https://github.com/rushi/swiftmailer-spoolreader#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "bootstrap": "^4.4.1",
     "jquery": "^3.5.0",
@@ -24,8 +27,8 @@
     "moment": "^2.24.0"
   },
   "devDependencies": {
-    "copy-webpack-plugin": "^6.0.2",
-    "webpack": "^4.43.0",
-    "webpack-cli": "^3.3.11"
+    "copy-webpack-plugin": "^11.0.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
   }
 }
